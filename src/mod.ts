@@ -124,14 +124,14 @@ function generateType(typeDef: AikenType): GenType {
 
       if (fields.length > 0) {
         if ("title" in fields[0]) {
-          const objectFields = fields as {
-            $ref: string;
-            title: string;
-          }[];
-
           const dependencies = new Map();
           const schema: string[] = [];
-          objectFields.forEach((cur) => {
+
+          fields.forEach((cur) => {
+            if (!("title" in cur)) {
+              throw new Error("title can not be undefined in Object field");
+            }
+
             const listType = getPointer(cur.$ref) as AikenType;
             const genType = generateType(listType);
 
@@ -162,7 +162,37 @@ function generateType(typeDef: AikenType): GenType {
             dependencies,
             schema: "Data.Object({" + schema.join(",") + "," + "})",
           };
+        } else {
+          const dependencies = new Map();
+          const schema: string[] = [];
+
+          fields.forEach((cur) => {
+            const listType = getPointer(cur.$ref) as AikenType;
+            const genType = generateType(listType);
+
+            if (genType.type === "primitive") {
+              schema.push(genType.schema);
+            } else if (genType.type === "composite") {
+              genType.dependencies.forEach((value, key) => {
+                dependencies.set(key, value);
+              });
+              schema.push(genType.schema);
+            } else if (genType.type === "custom") {
+              dependencies.set(genType.name, genType.path);
+              schema.push(`${genType.name}Schema`);
+            } else {
+              throw new Error("GenType.type not implemented yet");
+            }
+          });
+
+          return {
+            type: "composite",
+            dependencies,
+            schema: `Data.Tuple([${schema.join(", ")}])`,
+          };
         }
+      } else {
+        
       }
     }
   }
