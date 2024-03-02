@@ -14,8 +14,6 @@ Object.values(plutusSchema.definitions).forEach((typeDef) => {
     ensureDirSync(dir);
     Deno.writeTextFileSync(`./out/${res.path}.ts`, genTypeToFile(res));
     count++;
-  } else {
-    // console.log(res.schema);
   }
 });
 
@@ -192,7 +190,14 @@ function generateType(typeDef: AikenType): GenType {
           };
         }
       } else {
-        
+        if (!("title" in typeDef)) {
+          throw new Error("title can not be undefined with Literal");
+        }
+
+        return {
+          type: "primitive",
+          schema: `Data.Literal("${typeDef.title}"),`,
+        };
       }
     }
   }
@@ -232,7 +237,7 @@ function generateType(typeDef: AikenType): GenType {
         const genType = generateType(t as unknown as AikenType);
 
         if (genType.type === "primitive") {
-          schema.push(`Data.Literal("${t.title}")`);
+          schema.push(genType.schema);
         } else if (genType.type === "composite") {
           genType.dependencies.forEach((value, key) => {
             dependencies.set(key, value);
