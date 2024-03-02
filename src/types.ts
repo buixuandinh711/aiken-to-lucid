@@ -4,11 +4,6 @@ export type AikenType =
   & typeof blueprint.definitions[keyof typeof blueprint.definitions]
   & { path: string };
 
-export type Field = {
-  "title": string;
-  "$ref": string;
-};
-
 export type ImportMap = Map<string, string>;
 
 export type GenType = {

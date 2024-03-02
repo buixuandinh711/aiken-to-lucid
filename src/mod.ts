@@ -1,5 +1,5 @@
 import jsonpointer from "npm:jsonpointer";
-import { AikenType, Field } from "./types.ts";
+import { AikenType } from "./types.ts";
 import { GenType } from "./types.ts";
 import { builtInTypes, plutusSchema } from "./const.ts";
 import { genTypeToFile, getPointer } from "./utils.ts";
@@ -14,8 +14,15 @@ Object.values(plutusSchema.definitions).forEach((typeDef) => {
     ensureDirSync(dir);
     Deno.writeTextFileSync(`./out/${res.path}.ts`, genTypeToFile(res));
     count++;
+  } else {
+    // console.log(res.schema);
   }
 });
+
+console.log(
+  Object.values(plutusSchema.definitions).length,
+);
+console.log(`Generated ${count} files`);
 
 function generateType(typeDef: AikenType): GenType {
   const path = typeDef.path;
@@ -25,7 +32,6 @@ function generateType(typeDef: AikenType): GenType {
   }
 
   if ("dataType" in typeDef) {
-    // console.log(typeDef);
     if (typeDef.dataType == "list" && "items" in typeDef) {
       const listType = jsonpointer.get(
         plutusSchema,
@@ -54,52 +60,110 @@ function generateType(typeDef: AikenType): GenType {
         return {
           type: "composite",
           dependencies: new Map([[genType.name, genType.path]]),
-          schema: `Data.Array(${genType.name})`,
+          schema: `Data.Array(${genType.name}Schema)`,
         };
       }
     }
-    if (typeDef.dataType == "map") {
-      return {
-        type: "composite",
-        dependencies: new Map(),
-        schema: `Data.Map(Data.Integer(), Data.Bytes())`,
-      };
-    }
-    if (typeDef.dataType == "constructor" && "fields" in typeDef) {
-      const fields = typeDef.fields as Field[];
+
+    if (typeDef.dataType == "map" && "keys" in typeDef && "values" in typeDef) {
+      const keyType = jsonpointer.get(
+        plutusSchema,
+        typeDef.keys.$ref.slice(1),
+      ) as AikenType;
+      const genKeyType = generateType(keyType);
+
       const dependencies = new Map();
-      const schema: string[] = [];
-      fields.forEach((cur) => {
-        const listType = getPointer(cur.$ref) as AikenType;
-        const genType = generateType(listType);
+      let keySchema: string;
 
-        if (genType.type == "primitive") {
-          schema.push(`${cur.title}: ${genType.schema}`);
-          return;
-        }
+      if (genKeyType.type === "primitive") {
+        keySchema = genKeyType.schema;
+      } else if (genKeyType.type === "composite") {
+        genKeyType.dependencies.forEach((value, key) => {
+          dependencies.set(key, value);
+        });
+        keySchema = genKeyType.schema;
+      } else if (genKeyType.type === "custom") {
+        dependencies.set(genKeyType.name, genKeyType.path);
+        keySchema = `${genKeyType.name}Schema`;
+      } else {
+        throw new Error("map.key GenType.type not implemented yet");
+      }
 
-        if (genType.type == "composite") {
-          genType.dependencies.forEach((value, key) => {
-            dependencies.set(key, value);
-          });
-          schema.push(`${cur.title}: ${genType.schema}`);
-          return;
-        }
+      const valType = jsonpointer.get(
+        plutusSchema,
+        typeDef.values.$ref.slice(1),
+      ) as AikenType;
+      const genValType = generateType(valType);
+      let valSchema: string;
 
-        if (genType.type == "custom") {
-          dependencies.set(genType.name, genType.path);
-          schema.push(`${cur.title}: ${genType.name}`);
-          return;
-        }
-
-        throw new Error("GenType.type not implemented yet");
-      });
+      if (genValType.type === "primitive") {
+        valSchema = genValType.schema;
+      } else if (genValType.type === "composite") {
+        genValType.dependencies.forEach((value, key) => {
+          dependencies.set(key, value);
+        });
+        valSchema = genValType.schema;
+      } else if (genValType.type === "custom") {
+        dependencies.set(genValType.name, genValType.path);
+        valSchema = `${genValType.name}Schema`;
+      } else {
+        throw new Error("map.value GenType.type not implemented yet");
+      }
 
       return {
         type: "composite",
         dependencies,
-        schema: "Data.Object({" + schema.join(",") + "," + "})",
+        schema: `Data.Map(${keySchema}, ${valSchema})`,
       };
+    }
+
+    if (typeDef.dataType == "constructor" && "fields" in typeDef) {
+      const fields = typeDef.fields as {
+        $ref: string;
+      }[];
+
+      if (fields.length > 0) {
+        if ("title" in fields[0]) {
+          const objectFields = fields as {
+            $ref: string;
+            title: string;
+          }[];
+
+          const dependencies = new Map();
+          const schema: string[] = [];
+          objectFields.forEach((cur) => {
+            const listType = getPointer(cur.$ref) as AikenType;
+            const genType = generateType(listType);
+
+            if (genType.type == "primitive") {
+              schema.push(`${cur.title}: ${genType.schema}`);
+              return;
+            }
+
+            if (genType.type == "composite") {
+              genType.dependencies.forEach((value, key) => {
+                dependencies.set(key, value);
+              });
+              schema.push(`${cur.title}: ${genType.schema}`);
+              return;
+            }
+
+            if (genType.type == "custom") {
+              dependencies.set(genType.name, genType.path);
+              schema.push(`${cur.title}: ${genType.name}Schema`);
+              return;
+            }
+
+            throw new Error("GenType.type not implemented yet");
+          });
+
+          return {
+            type: "composite",
+            dependencies,
+            schema: "Data.Object({" + schema.join(",") + "," + "})",
+          };
+        }
+      }
     }
   }
 
@@ -107,7 +171,9 @@ function generateType(typeDef: AikenType): GenType {
     if (typeDef.anyOf.length == 1) {
       const genType = generateType(typeDef.anyOf[0] as unknown as AikenType);
 
-      if (genType.type != "composite") throw new Error("");
+      if (genType.type != "composite") {
+        throw new Error("GenType.type must be composite");
+      }
 
       const dependencies = new Map([
         ["Data", "https://deno.land/x/lucid@0.10.7/mod.ts"],
@@ -123,6 +189,41 @@ function generateType(typeDef: AikenType): GenType {
         name: typeDef.title,
         imports: dependencies,
         schema: genType.schema,
+      };
+    } else {
+      const dependencies = new Map([
+        ["Data", "https://deno.land/x/lucid@0.10.7/mod.ts"],
+      ]);
+      const schema: string[] = [];
+
+      typeDef.anyOf.forEach((t) => {
+        if (!("title" in t)) throw new Error("Enum variant title not found");
+
+        const genType = generateType(t as unknown as AikenType);
+
+        if (genType.type === "primitive") {
+          schema.push(`Data.Literal("${t.title}")`);
+        } else if (genType.type === "composite") {
+          genType.dependencies.forEach((value, key) => {
+            dependencies.set(key, value);
+          });
+
+          schema.push(
+            `Data.Object({${t.title}: ${genType.schema},})`,
+          );
+        } else {
+          throw new Error(
+            `Enum variant ${t.title} GenType.type ${genType.type} ${genType.schema} not implemented yet`,
+          );
+        }
+      });
+
+      return {
+        type: "custom",
+        path: typeDef.path,
+        name: typeDef.title,
+        imports: dependencies,
+        schema: `Data.Enum([${schema.join(", ")}]);`,
       };
     }
   }
