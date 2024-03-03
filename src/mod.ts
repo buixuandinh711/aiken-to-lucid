@@ -17,9 +17,6 @@ Object.values(plutusSchema.definitions).forEach((typeDef) => {
   }
 });
 
-console.log(
-  Object.values(plutusSchema.definitions).length,
-);
 console.log(`Generated ${count} files`);
 
 function generateType(typeDef: AikenType): GenType {
@@ -38,28 +35,26 @@ function generateType(typeDef: AikenType): GenType {
 
       const genType = generateType(listType);
 
-      if (genType.type == "primitive") {
+      if (genType.type === "primitive") {
         return {
           type: "composite",
           dependencies: new Map(),
           schema: `Data.Array(${genType.schema})`,
         };
-      }
-
-      if (genType.type == "composite") {
+      } else if (genType.type === "composite") {
         return {
           type: "composite",
           dependencies: new Map([...genType.dependencies]),
           schema: `Data.Array(${genType.schema})`,
         };
-      }
-
-      if (genType.type == "custom") {
+      } else if (genType.type === "custom") {
         return {
           type: "composite",
           dependencies: new Map([[genType.name, genType.path]]),
           schema: `Data.Array(${genType.name}Schema)`,
         };
+      } else {
+        throw new Error("list.item GenType.type not implemented yet");
       }
     }
 
@@ -232,7 +227,9 @@ function generateType(typeDef: AikenType): GenType {
       const schema: string[] = [];
 
       typeDef.anyOf.forEach((t) => {
-        if (!("title" in t)) throw new Error("Enum variant title not found");
+        if (!("title" in t)) {
+          throw new Error(`Enum ${typeDef.title} variant title not found`);
+        }
 
         const genType = generateType(t as unknown as AikenType);
 
@@ -248,7 +245,7 @@ function generateType(typeDef: AikenType): GenType {
           );
         } else {
           throw new Error(
-            `Enum variant ${t.title} GenType.type ${genType.type} ${genType.schema} not implemented yet`,
+            `Enum variant ${t.title} GenType.type ${genType.type} not implemented yet`,
           );
         }
       });
@@ -263,5 +260,5 @@ function generateType(typeDef: AikenType): GenType {
     }
   }
 
-  return { type: "primitive", schema: "===================>" };
+  throw new Error("Type is not recognized");
 }
