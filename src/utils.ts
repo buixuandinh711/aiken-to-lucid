@@ -1,18 +1,21 @@
 import jsonpointer from "npm:jsonpointer";
 import { AikenType } from "./types.ts";
-import { plutusSchema } from "./const.ts";
 import { GenType, ImportMap } from "./types.ts";
 import * as path from "std/path/mod.ts";
+import { PlutusDefinition } from "./types.ts";
 
-export function getPointer(ref: string): AikenType {
-  return jsonpointer.get(plutusSchema, ref.slice(1));
+export function getPointer(
+  plutusDefinition: PlutusDefinition,
+  ref: string,
+): AikenType {
+  return jsonpointer.get(plutusDefinition, ref.slice(13));
 }
 
 export function genTypeToFile(
   genType: Extract<GenType, { type: "custom" }>,
 ): string {
   return generateImports(genType.imports, extractPath(genType.path).dir) +
-    "\n\n" +
+    "\n" +
     generateFileContent(genType.name, genType.schema);
 }
 

@@ -1,24 +1,13 @@
 import { AikenType } from "./types.ts";
 import { GenType } from "./types.ts";
-import { builtInTypes, plutusSchema } from "./const.ts";
-import { genTypeToFile, getPointer } from "./utils.ts";
-import { ensureDirSync } from "std/fs/mod.ts";
+import { builtInTypes } from "./const.ts";
+import { getPointer } from "./utils.ts";
+import { PlutusDefinition } from "./types.ts";
 
-let count = 0;
-
-Object.values(plutusSchema.definitions).forEach((typeDef) => {
-  const res = generateType(typeDef as AikenType);
-  if (res.type == "custom") {
-    const dir = "./out/" + res.path.split("/").slice(0, -1).join("/");
-    ensureDirSync(dir);
-    Deno.writeTextFileSync(`./out/${res.path}.ts`, genTypeToFile(res));
-    count++;
-  }
-});
-
-console.log(`Generated ${count} files`);
-
-function generateType(typeDef: AikenType): GenType {
+export function generateType(
+  plutusDefinition: PlutusDefinition,
+  typeDef: AikenType,
+): GenType {
   const path = typeDef.path;
 
   if (path in builtInTypes) {
@@ -27,9 +16,12 @@ function generateType(typeDef: AikenType): GenType {
 
   if ("dataType" in typeDef) {
     if (typeDef.dataType == "list" && "items" in typeDef) {
-      const listType = getPointer(typeDef.items.$ref);
+      const listType = getPointer(
+        plutusDefinition,
+        typeDef.items.$ref,
+      );
 
-      const genType = generateType(listType);
+      const genType = generateType(plutusDefinition, listType);
 
       if (genType.type === "primitive") {
         return {
@@ -55,8 +47,8 @@ function generateType(typeDef: AikenType): GenType {
     }
 
     if (typeDef.dataType == "map" && "keys" in typeDef && "values" in typeDef) {
-      const keyType = getPointer(typeDef.keys.$ref);
-      const genKeyType = generateType(keyType);
+      const keyType = getPointer(plutusDefinition, typeDef.keys.$ref);
+      const genKeyType = generateType(plutusDefinition, keyType);
 
       const dependencies = new Map();
       let keySchema: string;
@@ -75,8 +67,8 @@ function generateType(typeDef: AikenType): GenType {
         throw new Error("map.key GenType.type not implemented yet");
       }
 
-      const valType = getPointer(typeDef.values.$ref);
-      const genValType = generateType(valType);
+      const valType = getPointer(plutusDefinition, typeDef.values.$ref);
+      const genValType = generateType(plutusDefinition, valType);
       let valSchema: string;
 
       if (genValType.type === "primitive") {
@@ -115,8 +107,8 @@ function generateType(typeDef: AikenType): GenType {
               throw new Error("title can not be undefined in Object field");
             }
 
-            const listType = getPointer(cur.$ref);
-            const genType = generateType(listType);
+            const listType = getPointer(plutusDefinition, cur.$ref);
+            const genType = generateType(plutusDefinition, listType);
 
             if (genType.type == "primitive") {
               schema.push(`${cur.title}: ${genType.schema}`);
@@ -150,8 +142,8 @@ function generateType(typeDef: AikenType): GenType {
           const schema: string[] = [];
 
           fields.forEach((cur) => {
-            const listType = getPointer(cur.$ref);
-            const genType = generateType(listType);
+            const listType = getPointer(plutusDefinition, cur.$ref);
+            const genType = generateType(plutusDefinition, listType);
 
             if (genType.type === "primitive") {
               schema.push(genType.schema);
@@ -189,7 +181,10 @@ function generateType(typeDef: AikenType): GenType {
 
   if ("anyOf" in typeDef) {
     if (typeDef.anyOf.length == 1) {
-      const genType = generateType(typeDef.anyOf[0] as unknown as AikenType);
+      const genType = generateType(
+        plutusDefinition,
+        typeDef.anyOf[0] as unknown as AikenType,
+      );
 
       if (genType.type != "composite") {
         throw new Error("GenType.type must be composite");
@@ -220,8 +215,11 @@ function generateType(typeDef: AikenType): GenType {
         throw new Error("Invalid type definition for Option.Some ");
       }
 
-      const someType = getPointer(typeDef.anyOf[0].fields[0].$ref);
-      const genType = generateType(someType);
+      const someType = getPointer(
+        plutusDefinition,
+        typeDef.anyOf[0].fields[0].$ref,
+      );
+      const genType = generateType(plutusDefinition, someType);
 
       if (genType.type === "primitive") {
         return {
@@ -255,7 +253,10 @@ function generateType(typeDef: AikenType): GenType {
           throw new Error(`Enum ${typeDef.title} variant title not found`);
         }
 
-        const genType = generateType(t as unknown as AikenType);
+        const genType = generateType(
+          plutusDefinition,
+          t as unknown as AikenType,
+        );
 
         if (genType.type === "primitive") {
           schema.push(genType.schema);

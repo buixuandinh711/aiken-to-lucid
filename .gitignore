@@ -3,3 +3,4 @@ plutus.json
 out
 deno.lock
 test.ts
+lucid-types

@@ -3,6 +3,7 @@
     "dev": "deno run src/mod.ts"
   },
   "imports": {
-    "std/": "https://deno.land/std@0.218.0/"
+    "std/": "https://deno.land/std@0.218.0/",
+    "cliffy/": "https://deno.land/x/cliffy@v1.0.0-rc.3/"
   }
 }
