@@ -1,4 +1,3 @@
-import jsonpointer from "npm:jsonpointer";
 import { AikenType } from "./types.ts";
 import { GenType } from "./types.ts";
 import { builtInTypes, plutusSchema } from "./const.ts";
