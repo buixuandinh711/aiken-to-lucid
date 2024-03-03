@@ -28,10 +28,7 @@ function generateType(typeDef: AikenType): GenType {
 
   if ("dataType" in typeDef) {
     if (typeDef.dataType == "list" && "items" in typeDef) {
-      const listType = jsonpointer.get(
-        plutusSchema,
-        typeDef.items.$ref.slice(1),
-      ) as AikenType;
+      const listType = getPointer(typeDef.items.$ref);
 
       const genType = generateType(listType);
 
@@ -59,10 +56,7 @@ function generateType(typeDef: AikenType): GenType {
     }
 
     if (typeDef.dataType == "map" && "keys" in typeDef && "values" in typeDef) {
-      const keyType = jsonpointer.get(
-        plutusSchema,
-        typeDef.keys.$ref.slice(1),
-      ) as AikenType;
+      const keyType = getPointer(typeDef.keys.$ref);
       const genKeyType = generateType(keyType);
 
       const dependencies = new Map();
@@ -82,10 +76,7 @@ function generateType(typeDef: AikenType): GenType {
         throw new Error("map.key GenType.type not implemented yet");
       }
 
-      const valType = jsonpointer.get(
-        plutusSchema,
-        typeDef.values.$ref.slice(1),
-      ) as AikenType;
+      const valType = getPointer(typeDef.values.$ref);
       const genValType = generateType(valType);
       let valSchema: string;
 
@@ -125,7 +116,7 @@ function generateType(typeDef: AikenType): GenType {
               throw new Error("title can not be undefined in Object field");
             }
 
-            const listType = getPointer(cur.$ref) as AikenType;
+            const listType = getPointer(cur.$ref);
             const genType = generateType(listType);
 
             if (genType.type == "primitive") {
@@ -160,7 +151,7 @@ function generateType(typeDef: AikenType): GenType {
           const schema: string[] = [];
 
           fields.forEach((cur) => {
-            const listType = getPointer(cur.$ref) as AikenType;
+            const listType = getPointer(cur.$ref);
             const genType = generateType(listType);
 
             if (genType.type === "primitive") {
@@ -220,6 +211,40 @@ function generateType(typeDef: AikenType): GenType {
         imports: dependencies,
         schema: genType.schema,
       };
+    } else if (typeDef.title === "Optional" && typeDef.anyOf.length == 2) {
+      const someDef = typeDef.anyOf[0];
+
+      if (
+        someDef.dataType !== "constructor" || !("title" in someDef) ||
+        someDef.title != "Some" || someDef.fields.length !== 1
+      ) {
+        throw new Error("Invalid type definition for Option.Some ");
+      }
+
+      const someType = getPointer(typeDef.anyOf[0].fields[0].$ref);
+      const genType = generateType(someType);
+
+      if (genType.type === "primitive") {
+        return {
+          type: "composite",
+          dependencies: new Map(),
+          schema: `Data.Nullable(${genType.schema})`,
+        };
+      } else if (genType.type === "composite") {
+        return {
+          type: "composite",
+          dependencies: new Map([...genType.dependencies]),
+          schema: `Data.Nullable(${genType.schema})`,
+        };
+      } else if (genType.type === "custom") {
+        return {
+          type: "composite",
+          dependencies: new Map([[genType.name, genType.path]]),
+          schema: `Data.Nullable(${genType.name}Schema)`,
+        };
+      } else {
+        throw new Error("Option.Some.value GenType.type not implemented yet");
+      }
     } else {
       const dependencies = new Map([
         ["Data", "https://deno.land/x/lucid@0.10.7/mod.ts"],

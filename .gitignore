@@ -2,3 +2,4 @@ plutus.json
 .vscode
 out
 deno.lock
+test.ts
