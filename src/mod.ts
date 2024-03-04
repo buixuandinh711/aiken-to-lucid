@@ -173,7 +173,7 @@ export function generateType(
 
         return {
           type: "primitive",
-          schema: `Data.Literal("${typeDef.title}"),`,
+          schema: `Data.Literal("${typeDef.title}")`,
         };
       }
     }
