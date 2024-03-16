@@ -60,19 +60,25 @@ export type PlutusDefinition = {
 
 export type AikenType = PlutusDefinition[keyof PlutusDefinition];
 
-export type ImportMap = Map<string, string>;
+export type ImportContent = {
+  content: string;
+  path: string;
+};
+
+// Map from
+export type ImportMap = Map<string, ImportContent>;
 
 export type GenType = {
   type: "custom";
   path: string;
   imports: ImportMap;
   name: string;
-  schema: string;
+  schema: string[];
 } | {
   type: "primitive";
-  schema: string;
+  schema: string[];
 } | {
   type: "composite";
   dependencies: ImportMap;
-  schema: string;
+  schema: string[];
 };

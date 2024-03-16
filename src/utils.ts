@@ -51,3 +51,34 @@ function extractPath(p: string) {
     name: segments.slice(-1)[0],
   };
 }
+
+export function insertDependencies(
+  baseDeps: ImportMap,
+  newDeps: ImportMap,
+  newSchema: string[],
+): [ImportMap, string[]] {
+  const updatedDeps = new Map([...baseDeps]);
+  const updatedSchema = [...newSchema];
+
+  for (const [importId, importContent] of newDeps) {
+    const foundContent = updatedDeps.get(importId);
+
+    if (foundContent != undefined) {
+      if (JSON.stringify(foundContent) == JSON.stringify(importContent)) {
+        continue;
+      } else {
+        const postfixedImportId = importId + "z";
+        updatedDeps.set(postfixedImportId, importContent);
+        updatedSchema.forEach((item, index) => {
+          if (item === importId) {
+            updatedSchema[index] = postfixedImportId;
+          }
+        });
+      }
+    } else {
+      updatedDeps.set(importId, importContent);
+    }
+  }
+
+  return [updatedDeps, updatedSchema];
+}
