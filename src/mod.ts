@@ -1,8 +1,9 @@
 import { AikenType } from "./types.ts";
-import { GenType } from "./types.ts";
+import { GenType, ImportMap } from "./types.ts";
 import { builtInTypes } from "./const.ts";
 import { getPointer, insertDependencies } from "./utils.ts";
 import { PlutusDefinition } from "./types.ts";
+import { sha256 } from "https://deno.land/x/lucid@0.10.7/mod.ts";
 
 export function generateType(
   plutusDefinition: PlutusDefinition,
@@ -33,13 +34,17 @@ export function generateType(
         return {
           type: "composite",
           dependencies: new Map([...genType.dependencies]),
-          schema: [`Data.Array(${genType.schema})`],
+          schema: ["Data.Array(", ...genType.schema, ")"],
         };
       } else if (genType.type === "custom") {
+        const importId = genType.name + "Schema";
         return {
           type: "composite",
-          dependencies: new Map([[genType.name, genType.path]]),
-          schema: [`Data.Array(${genType.name}Schema)`],
+          dependencies: new Map([[importId, {
+            content: importId,
+            path: genType.path,
+          }]]),
+          schema: ["Data.Array(", importId, ")"],
         };
       } else {
         throw new Error("list.item GenType.type not implemented yet");
@@ -47,7 +52,7 @@ export function generateType(
     }
 
     if (typeDef.dataType == "map" && "keys" in typeDef && "values" in typeDef) {
-      let dependencies = new Map();
+      let dependencies: ImportMap = new Map();
 
       const keyType = getPointer(plutusDefinition, typeDef.keys.$ref);
       const genKeyType = generateType(plutusDefinition, keyType);
@@ -56,13 +61,22 @@ export function generateType(
       if (genKeyType.type === "primitive") {
         keySchema = genKeyType.schema;
       } else if (genKeyType.type === "composite") {
-        genKeyType.dependencies.forEach((value, key) => {
-          dependencies.set(key, value);
-        });
-        keySchema = genKeyType.schema;
+        const [updatedDeps, updatedSchema] = insertDependencies(
+          dependencies,
+          genKeyType.dependencies,
+          genKeyType.schema,
+        );
+        dependencies = updatedDeps;
+        keySchema = updatedSchema;
       } else if (genKeyType.type === "custom") {
-        dependencies.set(genKeyType.name, genKeyType.path);
-        keySchema = [`${genKeyType.name}Schema`];
+        const importId = genKeyType.name + "Schema";
+        const [updatedDeps, updatedSchema] = insertDependencies(
+          dependencies,
+          new Map([[importId, { content: importId, path: genKeyType.path }]]),
+          [importId],
+        );
+        dependencies = updatedDeps;
+        keySchema = updatedSchema;
       } else {
         throw new Error("map.key GenType.type not implemented yet");
       }
@@ -82,10 +96,11 @@ export function generateType(
         dependencies = updatedDeps;
         valSchema = updatedSchema;
       } else if (genValType.type === "custom") {
+        const importId = genValType.name + "Schema";
         const [updatedDeps, updatedSchema] = insertDependencies(
           dependencies,
-          new Map([[genValType.name, genValType.path]]),
-          [genValType.name, "Schema"],
+          new Map([[importId, { content: importId, path: genValType.path }]]),
+          [importId],
         );
         dependencies = updatedDeps;
         valSchema = updatedSchema;
@@ -135,10 +150,15 @@ export function generateType(
             }
 
             if (genType.type == "custom") {
+              const importId = genType.name + "Schema";
+
               const [updatedDeps, updatedSchema] = insertDependencies(
                 dependencies,
-                new Map([[genType.name, genType.path]]),
-                genType.schema,
+                new Map([[importId, {
+                  content: importId,
+                  path: genType.path,
+                }]]),
+                [importId],
               );
               dependencies = updatedDeps;
               schema.push(`${cur.title}:`, ...updatedSchema, ",");
@@ -172,13 +192,15 @@ export function generateType(
               dependencies = updatedDeps;
               schema.push(...updatedSchema, ",");
             } else if (genType.type === "custom") {
-              dependencies.set(genType.name, genType.path);
-              schema.push(`${genType.name}Schema`);
+              const importId = genType.name + "Schema";
 
               const [updatedDeps, updatedSchema] = insertDependencies(
                 dependencies,
-                genType.dependencies,
-                genType.schema,
+                new Map([[importId, {
+                  content: importId,
+                  path: genType.path,
+                }]]),
+                [importId],
               );
               dependencies = updatedDeps;
               schema.push(...updatedSchema, ",");
@@ -190,7 +212,7 @@ export function generateType(
           return {
             type: "composite",
             dependencies,
-            schema: `Data.Tuple([${schema.join(", ")}])`,
+            schema: ["Data.Tuple([", ...schema, "])"],
           };
         }
       } else {
@@ -200,7 +222,7 @@ export function generateType(
 
         return {
           type: "primitive",
-          schema: `Data.Literal("${typeDef.title}")`,
+          schema: [`Data.Literal("${typeDef.title}"),`],
         };
       }
     }
@@ -217,8 +239,11 @@ export function generateType(
         throw new Error("GenType.type must be composite");
       }
 
-      const dependencies = new Map([
-        ["Data", "https://deno.land/x/lucid@0.10.7/mod.ts"],
+      const dependencies: ImportMap = new Map([
+        ["Data", {
+          content: "Data",
+          path: "https://deno.land/x/lucid@0.10.7/mod.ts",
+        }],
       ]);
 
       genType.dependencies.forEach((value, key) => {
@@ -252,26 +277,33 @@ export function generateType(
         return {
           type: "composite",
           dependencies: new Map(),
-          schema: `Data.Nullable(${genType.schema})`,
+          schema: [`Data.Nullable(${genType.schema.join("")})`],
         };
       } else if (genType.type === "composite") {
         return {
           type: "composite",
           dependencies: new Map([...genType.dependencies]),
-          schema: `Data.Nullable(${genType.schema})`,
+          schema: ["Data.Nullable(", ...genType.schema, ")"],
         };
       } else if (genType.type === "custom") {
+        const importId: string = genType.name + "Schema";
         return {
           type: "composite",
-          dependencies: new Map([[genType.name, genType.path]]),
-          schema: `Data.Nullable(${genType.name}Schema)`,
+          dependencies: new Map([[importId, {
+            content: importId,
+            path: genType.path,
+          }]]),
+          schema: ["Data.Nullable(", importId, ")"],
         };
       } else {
         throw new Error("Option.Some.value GenType.type not implemented yet");
       }
     } else {
-      const dependencies = new Map([
-        ["Data", "https://deno.land/x/lucid@0.10.7/mod.ts"],
+      let dependencies: ImportMap = new Map([
+        ["Data", {
+          content: "Data",
+          path: "https://deno.land/x/lucid@0.10.7/mod.ts",
+        }],
       ]);
       const schema: string[] = [];
 
@@ -286,14 +318,33 @@ export function generateType(
         );
 
         if (genType.type === "primitive") {
-          schema.push(genType.schema);
+          schema.push(...genType.schema);
         } else if (genType.type === "composite") {
           genType.dependencies.forEach((value, key) => {
             dependencies.set(key, value);
           });
 
           schema.push(
-            `Data.Object({${t.title}: ${genType.schema},})`,
+            "Data.Object({",
+            t.title,
+            ":",
+            ...genType.schema,
+            "}),",
+          );
+
+          const [updatedDeps, updatedSchema] = insertDependencies(
+            dependencies,
+            genType.dependencies,
+            genType.schema,
+          );
+
+          dependencies = updatedDeps;
+          schema.push(
+            "Data.Object({",
+            t.title,
+            ":",
+            ...updatedSchema,
+            "}),",
           );
         } else {
           throw new Error(
@@ -307,7 +358,7 @@ export function generateType(
         path: typeDef.path,
         name: typeDef.title,
         imports: dependencies,
-        schema: `Data.Enum([${schema.join(", ")}]);`,
+        schema: ["Data.Enum([", ...schema, "])"],
       };
     }
   }

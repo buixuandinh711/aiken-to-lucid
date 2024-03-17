@@ -16,23 +16,30 @@ export function genTypeToFile(
 ): string {
   return generateImports(genType.imports, extractPath(genType.path).dir) +
     "\n" +
-    generateFileContent(genType.name, genType.schema);
+    generateFileContent(genType.name, genType.schema.join(""));
 }
 
 function generateImports(importMap: ImportMap, basePath: string): string {
   let importLines = "";
-  importMap.forEach((importPath, content) => {
-    if (content != "Data") {
-      const { dir, name } = extractPath(importPath);
+  importMap.forEach((importContent, importId) => {
+    if (importId != "Data") {
+      const { dir, name } = extractPath(importContent.path);
       let relativePath = path.relative(basePath, dir) + "/";
       if (relativePath.length == 1) {
         relativePath = "./";
       }
-      importLines += `import { ${content}Schema } from "${
-        relativePath + name
-      }.ts";\n`;
+      if (importId == importContent.content) {
+        importLines += `import { ${importId} } from "${
+          relativePath + name
+        }.ts";\n`;
+      } else {
+        importLines +=
+          `import { ${importContent.content} as ${importId} } from "${
+            relativePath + name
+          }.ts";\n`;
+      }
     } else {
-      importLines += `import { ${content} } from "${importPath}";\n`;
+      importLines += `import { ${importId} } from "${importContent.path}";\n`;
     }
   });
   return importLines;
