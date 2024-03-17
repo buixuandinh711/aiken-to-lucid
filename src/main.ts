@@ -21,26 +21,30 @@ async function main() {
     )
     .action(({ inFile, outDir }) => {
       const plutusFile = JSON.parse(Deno.readTextFileSync(inFile));
-      plutusFile.definitions["aiken/math/rational/Rational"] = {
-        "title": "Rational",
-        "anyOf": [
-          {
-            "title": "Rational",
-            "dataType": "constructor",
-            "index": 0,
-            "fields": [
-              {
-                "title": "numerator",
-                "$ref": "#/definitions/Int",
-              },
-              {
-                "title": "denominator",
-                "$ref": "#/definitions/Int",
-              },
-            ],
-          },
-        ],
-      };
+
+      if (plutusFile.definitions["aiken/math/rational/Rational"] != undefined) {
+        plutusFile.definitions["aiken/math/rational/Rational"] = {
+          "title": "Rational",
+          "anyOf": [
+            {
+              "title": "Rational",
+              "dataType": "constructor",
+              "index": 0,
+              "fields": [
+                {
+                  "title": "numerator",
+                  "$ref": "#/definitions/Int",
+                },
+                {
+                  "title": "denominator",
+                  "$ref": "#/definitions/Int",
+                },
+              ],
+            },
+          ],
+        };
+      }
+
       Object.entries(plutusFile.definitions).forEach(([key]) =>
         plutusFile.definitions[key].path = key
       );
@@ -62,10 +66,20 @@ async function main() {
         }
       });
 
-      const command = new Deno.Command(Deno.execPath(), {
+      const lintCommand = new Deno.Command(Deno.execPath(), {
+        args: ["lint", outDir],
+      });
+      const { stderr, code } = lintCommand.outputSync();
+
+      if (code !== 0) {
+        const error = new TextDecoder().decode(stderr);
+        throw new Error("failed to lint generated files\n" + error);
+      }
+
+      const fmtCommand = new Deno.Command(Deno.execPath(), {
         args: ["fmt", outDir],
       });
-      command.outputSync();
+      fmtCommand.outputSync();
 
       console.log(`Generated ${count} files`);
       console.log(`Files saved to ${outDir}/`);

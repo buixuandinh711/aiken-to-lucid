@@ -16,23 +16,30 @@ export function genTypeToFile(
 ): string {
   return generateImports(genType.imports, extractPath(genType.path).dir) +
     "\n" +
-    generateFileContent(genType.name, genType.schema);
+    generateFileContent(genType.name, genType.schema.join(""));
 }
 
 function generateImports(importMap: ImportMap, basePath: string): string {
   let importLines = "";
-  importMap.forEach((importPath, content) => {
-    if (content != "Data") {
-      const { dir, name } = extractPath(importPath);
+  importMap.forEach((importContent, importId) => {
+    if (importId != "Data") {
+      const { dir, name } = extractPath(importContent.path);
       let relativePath = path.relative(basePath, dir) + "/";
       if (relativePath.length == 1) {
         relativePath = "./";
       }
-      importLines += `import { ${content}Schema } from "${
-        relativePath + name
-      }.ts";\n`;
+      if (importId == importContent.content) {
+        importLines += `import { ${importId} } from "${
+          relativePath + name
+        }.ts";\n`;
+      } else {
+        importLines +=
+          `import { ${importContent.content} as ${importId} } from "${
+            relativePath + name
+          }.ts";\n`;
+      }
     } else {
-      importLines += `import { ${content} } from "${importPath}";\n`;
+      importLines += `import { ${importId} } from "${importContent.path}";\n`;
     }
   });
   return importLines;
@@ -51,3 +58,52 @@ function extractPath(p: string) {
     name: segments.slice(-1)[0],
   };
 }
+
+export function insertDependencies(
+  baseDeps: ImportMap,
+  newDeps: ImportMap,
+  newSchema: string[],
+): [ImportMap, string[]] {
+  const updatedDeps = new Map([...baseDeps]);
+  const updatedSchema = [...newSchema];
+
+  for (const [importId, importContent] of newDeps) {
+    const foundContent = updatedDeps.get(importId);
+
+    if (foundContent != undefined) {
+      if (JSON.stringify(foundContent) == JSON.stringify(importContent)) {
+        continue;
+      } else {
+        const postfix = generateRandomPostfix();
+        const postfixedImportId = importId + postfix;
+        updatedDeps.set(postfixedImportId, importContent);
+        updatedSchema.forEach((item, index) => {
+          if (item === importId) {
+            updatedSchema[index] = postfixedImportId;
+          }
+        });
+      }
+    } else {
+      updatedDeps.set(importId, importContent);
+    }
+  }
+
+  return [updatedDeps, updatedSchema];
+}
+
+const generatedVal: Map<number, boolean> = new Map();
+const generateRandomPostfix = (): string => {
+  const min = 0;
+  const max = Math.pow(10, 9); // 10^9
+
+  let val = Math.floor(Math.random() * (max - min)) + min;
+
+  while (generatedVal.has(val)) {
+    val = Math.floor(Math.random() * (max - min)) + min;
+  }
+
+  generatedVal.set(val, true);
+
+  // Generate a random number between min (inclusive) and max (exclusive)
+  return String(val);
+};
