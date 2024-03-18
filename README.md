@@ -3,9 +3,15 @@
 ### Install
 Clone this repo and `cd` to it, then run:
 ```bash
-deno install --allow-read --allow-write --allow-run="deno" -n aikid --import-map deno.json src/main.ts
+deno install --allow-read --allow-write --allow-run="deno" -n juken src/main.ts
 ```
-This will install a Deno executable package named `aikid` to your machine.
+
+Or install directly from [deno.land](https://deno.land/x/juken)
+```bash
+deno install --allow-read --allow-write --allow-run="deno" -n juken https://deno.land/x/juken/src/mod.ts
+```
+
+This will install a Deno executable package named `juken` to your machine.
 
 **Permissions:** this package need these permissions:
 - **Read:** for reading `plutus.json` file.
@@ -13,9 +19,9 @@ This will install a Deno executable package named `aikid` to your machine.
 - **Run:** for running `deno fmt` after files generated.
 ### Usage
 ```bash
-aikid [--in-file path_to_plutus.json] [--out-dir path_to_out_dir]
+juken [--in-file path_to_plutus.json] [--out-dir path_to_out_dir]
 ```
 ### More info
 ```bash
-aikid --help
+juken --help
 ```

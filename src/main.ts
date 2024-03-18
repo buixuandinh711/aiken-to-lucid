@@ -1,12 +1,12 @@
-import { Command } from "cliffy/command/mod.ts";
+import { Command } from "./deps/cliffy.ts";
 import { AikenType, PlutusDefinition } from "./types.ts";
 import { generateType } from "./mod.ts";
-import { ensureDirSync } from "std/fs/mod.ts";
+import { ensureDirSync } from "./deps/std_fs.ts";
 import { genTypeToFile } from "./utils.ts";
 
 async function main() {
   await (new Command()
-    .name("aikid")
+    .name("juken")
     .version("0.1.0")
     .description("Generate Aiken types for Lucid")
     .option("-i, --in-file <path:string>", "Path to plutus.json file", {
