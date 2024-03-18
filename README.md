@@ -8,7 +8,7 @@ deno install --allow-read --allow-write --allow-run="deno" -n juken src/main.ts
 
 Or install directly from [deno.land](https://deno.land/x/juken)
 ```bash
-deno install --allow-read --allow-write --allow-run="deno" -n juken https://deno.land/x/juken/src/mod.ts
+deno install --allow-read --allow-write --allow-run="deno" -n juken https://deno.land/x/juken/src/main.ts
 ```
 
 This will install a Deno executable package named `juken` to your machine.
